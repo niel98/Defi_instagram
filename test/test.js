@@ -1,3 +1,5 @@
+const { assert } = require('chai')
+
 const Decentragram = artifacts.require('./Decentragram.sol')
 
 require('chai')
@@ -27,74 +29,73 @@ contract('Decentragram', ([deployer, author, tipper]) => {
   })
 
   describe('images', async () => {
-    let result, imageCount
-    const hash = 'QmV8cfu6n4NT5xRr2AHdKxFMTZEJrA44qgrBCr739BN9Wb'
+    let result, imageCount 
+     let hash = 'abc123'
 
     before(async () => {
       result = await decentragram.uploadImage(hash, 'Image description', { from: author })
       imageCount = await decentragram.imageCount()
     })
 
-    //check event
     it('creates images', async () => {
-      // SUCESS
+      //SUCCESS
       assert.equal(imageCount, 1)
-      const event = result.logs[0].args
+      let event = result.logs[0].args
       assert.equal(event.id.toNumber(), imageCount.toNumber(), 'id is correct')
-      assert.equal(event.hash, hash, 'Hash is correct')
+      assert.equal(event.hash, hash, 'hash is correct')
       assert.equal(event.description, 'Image description', 'description is correct')
-      assert.equal(event.tipAmount, '0', 'tip amount is correct')
+      assert.equal(event.tipAmount, 0, 'tip amount is correct')
       assert.equal(event.author, author, 'author is correct')
 
+      //FAILURE: image hash must not be empty
+      await decentragram.uploadImage('', 'Image description', { from: author }).should.be.rejected
 
-      // FAILURE: Image must have hash
-      await decentragram.uploadImage('', 'Image description', { from: author }).should.be.rejected;
-
-      // FAILURE: Image must have description
-      await decentragram.uploadImage('Image hash', '', { from: author }).should.be.rejected;
+      //FAILURE: image description must not be blank
+      await decentragram.uploadImage('hash', '', { from: author }).should.be.rejected
     })
 
-    //check from Struct
     it('lists images', async () => {
       const image = await decentragram.images(imageCount)
+
       assert.equal(image.id.toNumber(), imageCount.toNumber(), 'id is correct')
-      assert.equal(image.hash, hash, 'Hash is correct')
+      assert.equal(image.hash, hash, 'hash is correct')
       assert.equal(image.description, 'Image description', 'description is correct')
-      assert.equal(image.tipAmount, '0', 'tip amount is correct')
+      assert.equal(image.tipAmount, 0, 'tip amount is correct')
       assert.equal(image.author, author, 'author is correct')
     })
 
-    it('allows users to tip images', async () => {
-      // Track the author balance before purchase
+    it('tips images', async () => {
       let oldAuthorBalance
+
       oldAuthorBalance = await web3.eth.getBalance(author)
       oldAuthorBalance = new web3.utils.BN(oldAuthorBalance)
 
-      result = await decentragram.tipImageOwner(imageCount, { from: tipper, value: web3.utils.toWei('1', 'Ether') })
+      //Call the tip function
+      result = await decentragram.tipImage(imageCount, { from: tipper, value: web3.utils.toWei('1', 'Ether') })
 
-      // SUCCESS
-      const event = result.logs[0].args
+      //SUCCESS
+      let event = result.logs[0].args
       assert.equal(event.id.toNumber(), imageCount.toNumber(), 'id is correct')
-      assert.equal(event.hash, hash, 'Hash is correct')
+      assert.equal(event.hash, hash, 'hash is correct')
       assert.equal(event.description, 'Image description', 'description is correct')
-      assert.equal(event.tipAmount, '1000000000000000000', 'tip amount is correct')
+      assert.equal(event.tipAmount, 1000000000000000000, 'tip amount is correct')
       assert.equal(event.author, author, 'author is correct')
 
-      // Check that author received funds
+      //Check that the author received the tip
       let newAuthorBalance
       newAuthorBalance = await web3.eth.getBalance(author)
       newAuthorBalance = new web3.utils.BN(newAuthorBalance)
 
       let tipImageOwner
-      tipImageOwner = web3.utils.toWei('1', 'Ether')
+      tipImageOwner = await web3.utils.toWei('1', 'Ether')
       tipImageOwner = new web3.utils.BN(tipImageOwner)
 
-      const expectedBalance = oldAuthorBalance.add(tipImageOwner)
+      const expectedBAlance = oldAuthorBalance.add(tipImageOwner)
 
-      assert.equal(newAuthorBalance.toString(), expectedBalance.toString())
+      assert.equal(newAuthorBalance.toString(), expectedBAlance.toString())
 
-      // FAILURE: Tries to tip a image that does not exist
-      await decentragram.tipImageOwner(99, { from: tipper, value: web3.utils.toWei('1', 'Ether')}).should.be.rejected;
+      //FAILURE: tries to image that does not exist
+      await decentragram.tipImage(99, { from: tipper, value: web3.utils.toWei('1', 'Ether')}).should.be.rejected
     })
   })
 })
